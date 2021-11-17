@@ -3,11 +3,8 @@ package apigw
 import (
 	"net/http"
 
-	"github.com/morzhanov/go-otel/internal/telemetry"
-
 	"github.com/gin-gonic/gin"
-	"github.com/morzhanov/go-otel/api/order"
-	"github.com/morzhanov/go-otel/internal/rest"
+	"github.com/morzhanov/async-api/internal/rest"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +28,7 @@ func (c *controller) handleCreateOrder(ctx *gin.Context) {
 	sctx, span := t.Start(ctx, "create-order")
 	defer span.End()
 
-	d := order.CreateOrderMessage{}
+	//d := order.CreateOrderMessage{}
 	if err := c.BaseController.ParseRestBody(ctx, &d); err != nil {
 		c.handleHttpErr(ctx, err)
 		return
@@ -83,9 +80,8 @@ func (c *controller) Listen(port string) {
 func NewController(
 	client Client,
 	log *zap.Logger,
-	tel telemetry.Telemetry,
 ) Controller {
-	bc := rest.NewBaseController(log, tel)
+	bc := rest.NewBaseController(log)
 	c := controller{BaseController: bc, client: client}
 	r := bc.Router()
 	r.POST("/order", bc.Handler(c.handleCreateOrder))

@@ -8,7 +8,6 @@ type Config struct {
 	KafkaGroupID    string
 	MongoURL        string
 	PostgresURL     string
-	JaegerURL       string
 	APIGWport       string
 	OrderRESTurl    string
 	PaymentGRPCurl  string

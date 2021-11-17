@@ -6,13 +6,10 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/morzhanov/go-otel/internal/payment"
-
-	"github.com/morzhanov/go-otel/internal/psql"
-
-	"github.com/morzhanov/go-otel/internal/config"
-	"github.com/morzhanov/go-otel/internal/logger"
-	"github.com/morzhanov/go-otel/internal/telemetry"
+	"github.com/morzhanov/async-api/internal/config"
+	"github.com/morzhanov/async-api/internal/logger"
+	"github.com/morzhanov/async-api/internal/payment"
+	"github.com/morzhanov/async-api/internal/psql"
 	"go.uber.org/zap"
 )
 
@@ -29,13 +26,11 @@ func main() {
 	}
 	c, err := config.NewConfig()
 	failOnError(l, "config", err)
-	t, err := telemetry.NewTelemetry(c.JaegerURL, "payment", l)
-	failOnError(l, "telemetry", err)
 	p, err := psql.NewDb(c.PostgresURL)
 	failOnError(l, "postgres", err)
 
-	pay := payment.NewPayment(p, t)
-	srv, err := payment.NewController(pay, c, l, t)
+	pay := payment.NewPayment(p)
+	srv, err := payment.NewController(pay, c, l)
 	failOnError(l, "service", err)
 	go srv.Listen(context.Background())
 

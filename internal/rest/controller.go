@@ -10,12 +10,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/morzhanov/go-otel/internal/telemetry/meter"
-
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/morzhanov/go-otel/internal/telemetry"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -23,7 +17,6 @@ import (
 type baseController struct {
 	router *gin.Engine
 	log    *zap.Logger
-	tel    telemetry.Telemetry
 }
 
 type BaseController interface {
@@ -33,8 +26,6 @@ type BaseController interface {
 	Handler(handler gin.HandlerFunc) gin.HandlerFunc
 	Router() *gin.Engine
 	Logger() *zap.Logger
-	Tracer() telemetry.TraceFn
-	Meter() meter.Meter
 }
 
 func (c *baseController) Listen(
@@ -84,7 +75,6 @@ func (c *baseController) Handler(handler gin.HandlerFunc) gin.HandlerFunc {
 
 func PerformRequest(ctx context.Context, req *http.Request) ([]byte, error) {
 	sci := ctx.Value("span-context")
-	sc := sci.(trace.SpanContext)
 	req.Header.Set("content-type", "application/json")
 	spanCtx, err := sc.MarshalJSON()
 	if err != nil {
@@ -111,12 +101,10 @@ func GetSpanContext(ctx *gin.Context) (*context.Context, error) {
 	return &sctx, nil
 }
 
-func (c *baseController) Router() *gin.Engine       { return c.router }
-func (c *baseController) Logger() *zap.Logger       { return c.log }
-func (c *baseController) Tracer() telemetry.TraceFn { return c.tel.Tracer() }
-func (c *baseController) Meter() meter.Meter        { return c.tel.Meter() }
+func (c *baseController) Router() *gin.Engine { return c.router }
+func (c *baseController) Logger() *zap.Logger { return c.log }
 
-func NewBaseController(log *zap.Logger, tel telemetry.Telemetry) BaseController {
+func NewBaseController(log *zap.Logger) BaseController {
 	router := gin.Default()
-	return &baseController{router: router, log: log, tel: tel}
+	return &baseController{router: router, log: log}
 }

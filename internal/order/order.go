@@ -6,11 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	porder "github.com/morzhanov/go-otel/api/order"
-	"github.com/morzhanov/go-otel/api/payment"
-	"github.com/morzhanov/go-otel/internal/mq"
-	"github.com/morzhanov/go-otel/internal/rest"
-	"github.com/morzhanov/go-otel/internal/telemetry"
+	"github.com/morzhanov/async-api/internal/mq"
+	"github.com/morzhanov/async-api/internal/rest"
 	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -104,10 +101,10 @@ func (s *service) handleProcessOrder(ctx *gin.Context) {
 		return
 	}
 
-	if err := s.mq.WriteMessage(ectx, &payment.ProcessPaymentMessage{OrderId: msg.Id, Name: msg.Name, Amount: msg.Amount, Status: msg.Status}); err != nil {
-		s.handleHttpErr(ctx, res.Err())
-		return
-	}
+	//if err := s.mq.WriteMessage(ectx, &payment.ProcessPaymentMessage{OrderId: msg.Id, Name: msg.Name, Amount: msg.Amount, Status: msg.Status}); err != nil {
+	//	s.handleHttpErr(ctx, res.Err())
+	//	return
+	//}
 	ctx.JSON(http.StatusOK, &msg)
 }
 
@@ -118,7 +115,7 @@ func (s *service) Listen() {
 	r.Run()
 }
 
-func NewService(log *zap.Logger, tel telemetry.Telemetry, coll *mongo.Collection, msgq mq.MQ) Service {
-	bc := rest.NewBaseController(log, tel)
+func NewService(log *zap.Logger, coll *mongo.Collection, msgq mq.MQ) Service {
+	bc := rest.NewBaseController(log)
 	return &service{BaseController: bc, coll: coll, mq: msgq}
 }

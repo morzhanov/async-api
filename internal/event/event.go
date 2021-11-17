@@ -4,28 +4,21 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/morzhanov/go-otel/internal/telemetry/meter"
-
-	"github.com/morzhanov/go-otel/internal/telemetry"
-
-	"github.com/morzhanov/go-otel/internal/mq"
+	"github.com/morzhanov/async-api/internal/mq"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
 type baseController struct {
 	mq      mq.MQ
-	groupID string
 	log     *zap.Logger
-	tel     telemetry.Telemetry
+	groupID string
 }
 
 type BaseController interface {
 	Listen(ctx context.Context, processRequest func(*kafka.Message))
 	ConsumerGroupId() string
 	Logger() *zap.Logger
-	Tracer() telemetry.TraceFn
-	Meter() meter.Meter
 }
 
 func (c *baseController) Listen(
@@ -49,10 +42,8 @@ func (c *baseController) Listen(
 	}
 }
 
-func (c *baseController) Logger() *zap.Logger       { return c.log }
-func (c *baseController) ConsumerGroupId() string   { return c.groupID }
-func (c *baseController) Tracer() telemetry.TraceFn { return c.tel.Tracer() }
-func (c *baseController) Meter() meter.Meter        { return c.tel.Meter() }
+func (c *baseController) Logger() *zap.Logger     { return c.log }
+func (c *baseController) ConsumerGroupId() string { return c.groupID }
 
 func GetSpanContext(msg *kafka.Message) (*context.Context, error) {
 	var h kafka.Header
@@ -74,8 +65,7 @@ func NewController(
 	kafkaTopic string,
 	kafkaGroupID string,
 	log *zap.Logger,
-	tel telemetry.Telemetry,
 ) (BaseController, error) {
 	msgQ, err := mq.NewMq(kafkaUrl, kafkaTopic)
-	return &baseController{mq: msgQ, groupID: kafkaGroupID, log: log, tel: tel}, err
+	return &baseController{mq: msgQ, groupID: kafkaGroupID, log: log}, err
 }

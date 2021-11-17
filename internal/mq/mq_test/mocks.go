@@ -1,7 +1,7 @@
 package mq_test
 
 import (
-	"github.com/morzhanov/go-otel/internal/mq"
+	"github.com/morzhanov/async-api/internal/mq"
 	"github.com/segmentio/kafka-go"
 )
 

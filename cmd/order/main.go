@@ -5,15 +5,11 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/morzhanov/go-otel/internal/mq"
-
-	"github.com/morzhanov/go-otel/internal/mongodb"
-
-	"github.com/morzhanov/go-otel/internal/order"
-
-	"github.com/morzhanov/go-otel/internal/config"
-	"github.com/morzhanov/go-otel/internal/logger"
-	"github.com/morzhanov/go-otel/internal/telemetry"
+	"github.com/morzhanov/async-api/internal/config"
+	"github.com/morzhanov/async-api/internal/logger"
+	"github.com/morzhanov/async-api/internal/mongodb"
+	"github.com/morzhanov/async-api/internal/mq"
+	"github.com/morzhanov/async-api/internal/order"
 	"go.uber.org/zap"
 )
 
@@ -30,14 +26,12 @@ func main() {
 	}
 	c, err := config.NewConfig()
 	failOnError(l, "config", err)
-	t, err := telemetry.NewTelemetry(c.JaegerURL, "order", l)
-	failOnError(l, "telemetry", err)
 	m, err := mongodb.NewMongoDB(c.MongoURL)
 	failOnError(l, "mongodb", err)
 	msgq, err := mq.NewMq(c.KafkaURL, c.KafkaTopic)
 	failOnError(l, "message_queue", err)
 
-	srv := order.NewService(l, t, m, msgq)
+	srv := order.NewService(l, m, msgq)
 	go srv.Listen()
 
 	quit := make(chan os.Signal, 1)

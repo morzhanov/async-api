@@ -4,11 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/morzhanov/go-otel/internal/telemetry"
-
-	gpayment "github.com/morzhanov/go-otel/api/grpc/payment"
-	"github.com/morzhanov/go-otel/internal/config"
-	"github.com/morzhanov/go-otel/internal/event"
+	"github.com/morzhanov/async-api/internal/config"
+	"github.com/morzhanov/async-api/internal/event"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
@@ -32,7 +29,7 @@ func (c *eventController) processPayment(in *kafka.Message) {
 	sctx, span := et.Start(*pctx, "process-payment")
 	defer span.End()
 
-	res := gpayment.ProcessPaymentMessage{}
+	//res := gpayment.ProcessPaymentMessage{}
 	if err := json.Unmarshal(in.Value, &res); err != nil {
 		c.Logger().Error("error during process payment event processing", zap.Error(err))
 	}
@@ -49,8 +46,7 @@ func NewController(
 	pay Payment,
 	c *config.Config,
 	log *zap.Logger,
-	tel telemetry.Telemetry,
 ) (Controller, error) {
-	controller, err := event.NewController(c.KafkaURL, c.KafkaTopic, c.KafkaGroupID, log, tel)
+	controller, err := event.NewController(c.KafkaURL, c.KafkaTopic, c.KafkaGroupID, log)
 	return &eventController{BaseController: controller, pay: pay}, err
 }

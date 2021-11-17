@@ -6,11 +6,9 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/morzhanov/go-otel/api/payment"
-	"github.com/morzhanov/go-otel/internal/apigw"
-	"github.com/morzhanov/go-otel/internal/config"
-	"github.com/morzhanov/go-otel/internal/logger"
-	"github.com/morzhanov/go-otel/internal/telemetry"
+	"github.com/morzhanov/async-api/internal/apigw"
+	"github.com/morzhanov/async-api/internal/config"
+	"github.com/morzhanov/async-api/internal/logger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -28,14 +26,12 @@ func main() {
 	}
 	c, err := config.NewConfig()
 	failOnError(l, "config", err)
-	t, err := telemetry.NewTelemetry(c.JaegerURL, "apigw", l)
-	failOnError(l, "telemetry", err)
 
 	uri := fmt.Sprintf("%s:%s", c.PaymentGRPCurl, c.PaymentGRPCport)
 	conn, err := grpc.Dial(uri, grpc.WithInsecure(), grpc.WithBlock())
 	failOnError(l, "config", err)
-	client := apigw.NewClient(c.OrderRESTurl, payment.NewPaymentClient(conn))
-	srv := apigw.NewController(client, l, t)
+	//client := apigw.NewClient(c.OrderRESTurl, payment.NewPaymentClient(conn))
+	srv := apigw.NewController(client, l)
 	go srv.Listen(c.APIGWport)
 
 	quit := make(chan os.Signal, 1)
