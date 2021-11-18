@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
 
+	api "github.com/morzhanov/async-api/api/order"
 	"github.com/morzhanov/async-api/internal/config"
 	"github.com/morzhanov/async-api/internal/logger"
 	"github.com/morzhanov/async-api/internal/mongodb"
@@ -28,11 +30,18 @@ func main() {
 	failOnError(l, "config", err)
 	m, err := mongodb.NewMongoDB(c.MongoURL)
 	failOnError(l, "mongodb", err)
-	msgq, err := mq.NewMq(c.KafkaURL, c.KafkaTopic)
+
+	err = api.Build(c.KafkaURL, "kafka", c.ProtocolVersion)
+	failOnError(l, "api", err)
+	processPaymentMq, err := mq.NewMq(c.KafkaURL, "payment.process")
 	failOnError(l, "message_queue", err)
 
-	srv := order.NewService(l, m, msgq)
-	go srv.Listen()
+	ctrls, err := order.NewController(c, l, processPaymentMq, m)
+	failOnError(l, "message_queue", err)
+	for _, ctrl := range ctrls {
+		ctx := context.Background()
+		go ctrl.Listen(ctx)
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)

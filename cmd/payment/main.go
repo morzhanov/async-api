@@ -30,9 +30,9 @@ func main() {
 	failOnError(l, "postgres", err)
 
 	pay := payment.NewPayment(p)
-	srv, err := payment.NewController(pay, c, l)
+	ctrl, err := payment.NewController(pay, c, l)
 	failOnError(l, "service", err)
-	go srv.Listen(context.Background())
+	go ctrl.Listen(context.Background())
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)

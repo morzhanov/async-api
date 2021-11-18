@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	apipayment "github.com/morzhanov/async-api/api/payment"
 	"github.com/morzhanov/async-api/internal/config"
 	"github.com/morzhanov/async-api/internal/event"
 	"github.com/segmentio/kafka-go"
@@ -20,20 +21,12 @@ type Controller interface {
 }
 
 func (c *eventController) processPayment(in *kafka.Message) {
-	c.Meter().IncReqCount()
-	et := c.Tracer()("kafka")
-	pctx, err := event.GetSpanContext(in)
-	if err != nil {
-		c.Logger().Error("error during process payment event processing", zap.Error(err))
-	}
-	sctx, span := et.Start(*pctx, "process-payment")
-	defer span.End()
-
-	//res := gpayment.ProcessPaymentMessage{}
+	ctx := context.Background()
+	res := apipayment.ProcessPaymentMessage{}
 	if err := json.Unmarshal(in.Value, &res); err != nil {
 		c.Logger().Error("error during process payment event processing", zap.Error(err))
 	}
-	if err := c.pay.ProcessPayment(sctx, &res); err != nil {
+	if err := c.pay.ProcessPayment(ctx, &res); err != nil {
 		c.Logger().Error("error during process payment event processing", zap.Error(err))
 	}
 }
@@ -47,6 +40,6 @@ func NewController(
 	c *config.Config,
 	log *zap.Logger,
 ) (Controller, error) {
-	controller, err := event.NewController(c.KafkaURL, c.KafkaTopic, c.KafkaGroupID, log)
+	controller, err := event.NewController(c.KafkaURL, "payment.process", "payment.process", log)
 	return &eventController{BaseController: controller, pay: pay}, err
 }

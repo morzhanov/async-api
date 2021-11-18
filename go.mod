@@ -43,6 +43,9 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
+	github.com/swaggest/go-asyncapi v0.6.1 // indirect
+	github.com/swaggest/jsonschema-go v0.3.22 // indirect
+	github.com/swaggest/refl v1.0.0 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.0.2 // indirect

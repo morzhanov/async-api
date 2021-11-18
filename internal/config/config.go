@@ -3,15 +3,11 @@ package config
 import "github.com/spf13/viper"
 
 type Config struct {
-	KafkaURL        string
-	KafkaTopic      string
-	KafkaGroupID    string
-	MongoURL        string
-	PostgresURL     string
-	APIGWport       string
-	OrderRESTurl    string
-	PaymentGRPCurl  string
-	PaymentGRPCport string
+	KafkaURL        string `mapstructure:"KAFKA_URL"`
+	MongoURL        string `mapstructure:"MONGO_URL"`
+	PostgresURL     string `mapstructure:"POSTGRES_URL"`
+	APIGWport       string `mapstructure:"APIGW_PORT"`
+	ProtocolVersion string `mapstructure:"PROTOCOL_VERSION"`
 }
 
 func NewConfig() (config *Config, err error) {

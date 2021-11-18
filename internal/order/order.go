@@ -1,121 +1,102 @@
 package order
 
 import (
+	"context"
 	"encoding/json"
-	"io/ioutil"
-	"net/http"
 
-	"github.com/gin-gonic/gin"
+	apiorder "github.com/morzhanov/async-api/api/order"
+	"github.com/morzhanov/async-api/api/payment"
+	"github.com/morzhanov/async-api/internal/config"
+	"github.com/morzhanov/async-api/internal/event"
 	"github.com/morzhanov/async-api/internal/mq"
-	"github.com/morzhanov/async-api/internal/rest"
 	uuid "github.com/satori/go.uuid"
+	"github.com/segmentio/kafka-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 )
 
-type service struct {
-	rest.BaseController
+type Message struct {
+	ID     string
+	Name   string
+	Amount int
+	Status string
+}
+
+type createController struct {
+	event.BaseController
 	coll *mongo.Collection
-	mq   mq.MQ
 }
 
-type Service interface {
-	Listen()
+type processController struct {
+	event.BaseController
+	coll             *mongo.Collection
+	processPaymentMq mq.MQ
 }
 
-func (s *service) handleHttpErr(ctx *gin.Context, err error) {
-	ctx.String(http.StatusInternalServerError, err.Error())
-	s.BaseController.Logger().Info("error in the REST handler", zap.Error(err))
+type Controller interface {
+	Listen(ctx context.Context)
 }
 
-func (s *service) handleCreateOrder(ctx *gin.Context) {
-	s.Meter().IncReqCount()
-	t := s.Tracer()("rest")
-	dbt := s.Tracer()("mongodb")
-	parentCtx, err := rest.GetSpanContext(ctx)
-	if err != nil {
-		s.handleHttpErr(ctx, err)
-		return
+func (c *createController) createOrder(in *kafka.Message) {
+	ctx := context.Background()
+	msg := apiorder.CreateOrderMessage{}
+	if err := json.Unmarshal(in.Value, &msg); err != nil {
+		c.Logger().Error("error during create order event processing", zap.Error(err))
 	}
-	_, span := t.Start(*parentCtx, "create-order")
-	defer span.End()
-	dbctx, dbspan := dbt.Start(*parentCtx, "create-order")
-	defer dbspan.End()
-
-	jsonData, err := ioutil.ReadAll(ctx.Request.Body)
-	if err != nil {
-		return
+	item := Message{ID: uuid.NewV4().String(), Name: msg.Name, Amount: msg.Amount, Status: "new"}
+	if _, err := c.coll.InsertOne(ctx, &item); err != nil {
+		c.Logger().Error("error during create order event processing", zap.Error(err))
 	}
-	d := porder.CreateOrderMessage{}
-	if err = json.Unmarshal(jsonData, &d); err != nil {
-		s.handleHttpErr(ctx, err)
-		return
-	}
-
-	id := uuid.NewV4().String()
-	msg := porder.OrderMessage{Id: id, Name: d.Name, Amount: d.Amount, Status: "new"}
-	_, err = s.coll.InsertOne(dbctx, &msg)
-	if err != nil {
-		s.handleHttpErr(ctx, err)
-		return
-	}
-	ctx.JSON(http.StatusCreated, &msg)
 }
 
-func (s *service) handleProcessOrder(ctx *gin.Context) {
-	s.Meter().IncReqCount()
-	t := s.Tracer()("rest")
-	dbt := s.Tracer()("mongodb")
-	et := s.Tracer()("kafka")
-	parentCtx, err := rest.GetSpanContext(ctx)
-	if err != nil {
-		s.handleHttpErr(ctx, err)
-		return
-	}
-	_, span := t.Start(*parentCtx, "process-order")
-	defer span.End()
-	dbctx, dbspan := dbt.Start(*parentCtx, "process-order")
-	defer dbspan.End()
-	dbctxInsert, dbspanInsert := dbt.Start(*parentCtx, "get-order")
-	defer dbspanInsert.End()
-	ectx, espan := et.Start(*parentCtx, "process-order")
-	defer espan.End()
+func (c *createController) Listen(ctx context.Context) {
+	c.BaseController.Listen(ctx, c.createOrder)
+}
 
-	id := ctx.Param("id")
-	filter := bson.D{{"_id", id}}
+func (c *processController) processOrder(in *kafka.Message) {
+	ctx := context.Background()
+	msg := apiorder.ProcessOrderMessage{}
+	if err := json.Unmarshal(in.Value, &msg); err != nil {
+		c.Logger().Error("error during process order event processing", zap.Error(err))
+	}
+
+	filter := bson.D{{"_id", msg.ID}}
 	update := bson.D{{"$set", bson.D{{"status", "processed"}}}}
-	_, err = s.coll.UpdateOne(dbctx, filter, update)
-	if err != nil {
-		s.handleHttpErr(ctx, err)
+	if _, err := c.coll.UpdateOne(ctx, filter, update); err != nil {
+		c.Logger().Error("error during process order event processing", zap.Error(err))
 		return
 	}
-	res := s.coll.FindOne(dbctxInsert, filter)
+	res := c.coll.FindOne(ctx, filter)
 	if res.Err() != nil {
-		s.handleHttpErr(ctx, res.Err())
+		c.Logger().Error("error during process order event processing", zap.Error(res.Err()))
 		return
 	}
-	msg := porder.OrderMessage{}
-	if err := res.Decode(&msg); err != nil {
-		s.handleHttpErr(ctx, res.Err())
+	var orderMsg Message
+	if err := res.Decode(&orderMsg); err != nil {
+		c.Logger().Error("error during process order event processing", zap.Error(err))
 		return
 	}
-
-	//if err := s.mq.WriteMessage(ectx, &payment.ProcessPaymentMessage{OrderId: msg.Id, Name: msg.Name, Amount: msg.Amount, Status: msg.Status}); err != nil {
-	//	s.handleHttpErr(ctx, res.Err())
-	//	return
-	//}
-	ctx.JSON(http.StatusOK, &msg)
+	if err := c.processPaymentMq.WriteMessage(ctx, &payment.ProcessPaymentMessage{OrderID: orderMsg.ID, Name: orderMsg.Name, Amount: orderMsg.Amount, Status: orderMsg.Status}); err != nil {
+		c.Logger().Error("error during process order event processing", zap.Error(err))
+		return
+	}
 }
 
-func (s *service) Listen() {
-	r := s.BaseController.Router()
-	r.POST("/", s.handleCreateOrder)
-	r.POST("/:id", s.handleProcessOrder)
-	r.Run()
+func (c *processController) Listen(ctx context.Context) {
+	c.BaseController.Listen(ctx, c.processOrder)
 }
 
-func NewService(log *zap.Logger, coll *mongo.Collection, msgq mq.MQ) Service {
-	bc := rest.NewBaseController(log)
-	return &service{BaseController: bc, coll: coll, mq: msgq}
+func NewController(
+	c *config.Config,
+	log *zap.Logger,
+	processPaymentMq mq.MQ,
+	coll *mongo.Collection,
+) ([]Controller, error) {
+	createCtrl, err := event.NewController(c.KafkaURL, "order.create", "order.create", log)
+	processCtrl, err := event.NewController(c.KafkaURL, "order.process", "order.process", log)
+	return []Controller{
+		&createController{BaseController: createCtrl, coll: coll},
+		&processController{BaseController: processCtrl, coll: coll, processPaymentMq: processPaymentMq},
+	}, err
 }
